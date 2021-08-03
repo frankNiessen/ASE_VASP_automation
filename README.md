@@ -1,4 +1,4 @@
-# ASE_VASP_automation
+# VASP DFT automatization with ASE
 This repo contains a library that aims at automatizing some Density Functional Theory (DFT) workflows in [**VASP**](https://vasp.at/) by using the [**ASE**](https://wiki.fysik.dtu.dk/ase/index.html) toolkit. The workflows are adapted from the wonderful ressources provided by [Prof. John Kitchin](http://kitchingroup.cheme.cmu.edu/dft-book/dft.html). I am not an expert in DFT but I hope that these scripts might be helpful to some people starting up with DFT and management of DFT workflows.
 
 ## Installation

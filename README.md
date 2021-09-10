@@ -18,7 +18,7 @@ This script is used to create/load a structure and determine the number of bands
 ### job.py
 The job script shows an example workflow on a Copper structure. Here the parameters *e-cut* and *kpoints* are determined by convergence testing. Then the structure is optimized with different conditions for structure relaxation. All results are saved in a subfolder *results* which is created upon the first execution of the program. The results contain the raw input and output files from **VASP** as well as the results from convergence and optimization runs in the form of ASCII files and images of the plots.
 
-*job_hcp* shows an example of a job file for structure relaxation of a hexagonal structure, in which both lattice parameters *a* and *c* are varied.
+*job_hcp.py* shows an example of a job file for structure relaxation of a hexagonal structure, in which both lattice parameters *a* and *c* are varied.
 
 ## Parallelization
 The scripts can be run as-is on a personal computer, by default it will do so with *kpar = 1* and *ncore = 1*. If you have **VASP** and **ASE** installed on a High Performance Cluster (*HPC*), or if you have a parallelized version of **VASP** compiled on your personal computer, you can supply the arguments *kpar* and *ncore* on the command line. As an example, you can run the calculations with *kpar = 2* and *ncore = 16* by executing: 

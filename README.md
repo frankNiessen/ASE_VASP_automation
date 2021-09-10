@@ -20,3 +20,6 @@ The scripts can be run as-is on a personal computer, by default it will do so wi
 *job.py 2 16*
 
 If you want to run **VASP** in a parallel environment, you will have to set the **ASE** environment variable *ASE_VASP_COMMAND* to *"mpirun vasp_std"*.
+
+## Contribute
+If you find any errors, feel free to submit a pull request or to adress them in the "Issues" tab. If you want to contribute to this code, please get into contact with me. Also feel tree to fork the code and develop your own alterations.

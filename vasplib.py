@@ -1,5 +1,7 @@
+from ase.calculators.calculator import equal
 from ase.calculators.vasp import Vasp
 from ase.eos import EquationOfState
+from ase import lattice
 import json
 import numpy as np
 import matplotlib
@@ -60,6 +62,9 @@ def param_convergence(calc,param,job_info):
     __saveplot__(proj_dir,param['name'] + '_vs_energy.png')
     return [energy, calc_conv]
 
+## Redo HCP Case buy building entire unit cell
+## ADD HEX REFINEMENT see http://kitchingroup.cheme.cmu.edu/dft-book/dft.html#orgheadline20 section 4.3.2
+
 
 def volume_relaxation(calc,param,job_info):
     '''Volume relaxation by systematically varied cell volume and potential energy calculation'''
@@ -75,8 +80,8 @@ def volume_relaxation(calc,param,job_info):
     for idx, item in enumerate(param['value']):
         print(str(idx+1)+'/'+str(len(param['value']))+' - ' + param['name'] + 
               ': {0:1.2f}'.format(item) + ' (' + param['unit'] + '),',end="", flush=True)
-        cell_factor = (item / v0)**(1. / 3.)
-        atoms.set_cell(cell0 * cell_factor, scale_atoms=True)
+        atoms = stretch_cell(atoms,cell0,item)
+
         calc.set(directory=proj_dir+'/raw/{0:1.2f}'.format(item))
         calc.set(atoms=atoms)    
         energy.append(atoms.get_potential_energy())
@@ -99,6 +104,82 @@ def volume_relaxation(calc,param,job_info):
     __saveplot__(proj_dir,'equation_of_state.png')
 
     return [volume, energy, [v0,e0,B]]
+
+
+def volume_relaxation_hcp(calc,param,job_info):
+    '''Volume relaxation by systematically varied cell volume and potential energy calculation'''
+    X,Y = np.meshgrid(param['value'][0],param['value'][1])
+    energy = np.zeros(X.shape)
+    volume = energy.copy()
+    atoms0 = calc.get_atoms()
+    v0 = atoms0.get_volume()
+    cell0 = atoms0.get_cell()
+    proj_dir = job_info['subdir']+'/'+job_info['name']+'/'+job_info['method']
+ 
+    print('---------------------------')
+    print('Running volume relaxation: ' + job_info['method'] + ' ...')
+    print('---------------------------')
+    k = 1
+    for ida, a in enumerate(param['value'][0]):
+        for idca, ca in enumerate(param['value'][1]):
+            print('{0:d}/{1:d}: '.format(k,X.size) 
+                + param['name'][0] + ': {0:1.2f}'.format(a) + ' [' + param['unit'][0] + '], '
+                + param['name'][1] + ': {0:1.2f}'.format(ca) + ' [' + param['unit'][1] + ']',
+                  end="", flush=True)
+            atoms = stretch_cell(atoms0,cell0,[a,ca])
+            calc_dir = proj_dir+'/raw/{0:1.2f}--{1:1.2f}'.format(a,ca)
+            calc.set(directory=calc_dir)
+            calc_load = load_calc(calc_dir)
+            if not(calc_load == []) and calc_load.converged:
+                energy[ida,idca] = calc_load.get_potential_energy()  
+                volume[ida,idca] = calc_load.get_atoms().get_volume()
+            else:
+                calc.set(atoms=atoms) 
+                energy[ida,idca] = atoms.get_potential_energy()
+                __error_check__
+                volume[ida,idca] = atoms.get_volume()
+            
+            print(" e_pot: {0:1.6f} eV".format(energy[ida,idca]))
+            k += 1
+ 
+    fig1, ax1 = plt.subplots()
+    cf = ax1.contourf(X,Y,energy,40,cmap=plt.cm.jet)
+    ax1.set_xlabel('$a$ ($\AA$)')
+    ax1.set_ylabel('$c/a$ ($1$)')
+    cbar = fig1.colorbar(cf)
+    cbar.ax.set_ylabel('Energy (eV)')
+    __saveplot__(proj_dir,'hex_relaxation_contour.png')
+
+    #Save table
+    __tojson__(proj_dir,(X,Y),energy,param)
+    #Plot and save figure
+    __makeplot__(param['value'],energy,param)
+    __saveplot__(proj_dir,param['name'] + '_vs_energy.png')
+
+    #Fit an equation of state
+    eos = EquationOfState(volume,energy)
+    v0, e0, B = eos.fit()
+    print('.......... Equation of State ..........')
+    print('v0 = {0} AA^3, E0 = {1} eV, B  = {2} eV/A^3'.format(v0, e0, B))
+    eos.plot()
+    __saveplot__(proj_dir,'equation_of_state.png')
+
+    return [volume, energy, [v0,e0,B]]
+
+
+def stretch_cell(atoms,cell0,param):
+    if type(param) == float:
+        cell_factor = param**(1. / 3.)
+        atoms.set_cell(cell0 * cell_factor, scale_atoms=True)
+    elif type(param) == list:
+        lat = cell0.get_bravais_lattice()
+        if type(lat) == lattice.HEX: #hexagonal
+            if not (len(param) == 2): 
+                raise Exception('a in Angstrom and the c/a ratios are required for a hexagonal cell')
+            atoms.set_cell([param[0],param[0],param[0]*param[1],
+                            cell0.angles()[0],cell0.angles()[1],cell0.angles()[2]], scale_atoms=True)   
+
+    return atoms
 
 
 def volume_refinement(calcs,job_info):
@@ -150,9 +231,8 @@ def volume_refinement(calcs,job_info):
         __saveplot__(proj_dir,'refinement_results.png')
     return [volume, energy, [v0,e0,B]]
 
-def load_calc(job_info):
+def load_calc(load_dir,raise_error = False):
     import os
-    load_dir = job_info['subdir'] + '/' + job_info['name'] + '/' + job_info['load_dir']
     #Load previous calculation
     if os.path.exists(load_dir) and os.path.exists(load_dir+'/OUTCAR'):
         calc = Vasp(directory=load_dir, restart=True)
@@ -161,9 +241,13 @@ def load_calc(job_info):
         if all([os.path.exists(s+'/OUTCAR') for s in load_dirs]):
             calc = [Vasp(directory=v, restart=True) for v in load_dirs]
         else:
-            raise Exception('"job_info[load_dir]" does not point to a VASP directory!')    
+            if raise_error:
+                raise Exception('"job_info[load_dir]" does not point to a VASP directory!')    
+            else: calc = []
     else:
-        raise Exception('Path ' + load_dir + ' does not exist!')    
+        if  raise_error:
+            raise Exception('Path ' + load_dir + ' does not exist!')   
+        else: calc = [] 
     return calc
 
 
@@ -210,7 +294,11 @@ def get_default_number_of_electrons(calc, filename):
 
 
 def get_number_of_bands(atoms,job_info,f=1.0):
-    """
+    """        with open(proj_dir+'/tables'+'/' + param['name'][0].replace('/','_over_') 
+                + '_' + param['name'][1].replace('/','-over-') + '_vs_energy.json', 'w') as f:
+            f.write(json.dumps({param['name'][0]+' ('+param['unit'][0]+')': x[0].flatten(order='F').tolist(), 
+                                param['name'][1]+' ('+param['unit'][1]+')': x[1].flatten(order='F').tolist(),
+                                'energies (eV)': energy.flatten().tolist()}))
     Determines the number of bands for a structure according to 
     https://www.vasp.at/wiki/index.php/Number_of_bands_NBANDS
     and an optional prefactor f
@@ -266,8 +354,15 @@ def __tojson__(proj_dir,x,energy,param):
     '''Export results to *.json file'''
     if not os.path.exists(proj_dir+'/tables'):
         os.makedirs(proj_dir+'/tables')
-    with open(proj_dir+'/tables'+'/' + param['name'] + '_vs_energy.json', 'w') as f:
-        f.write(json.dumps({param['name']+' ('+param['unit']+')': x, 'energies (eV)': energy}))
+    if len(param['name']) == 2:
+        with open(proj_dir+'/tables'+'/' + param['name'][0].replace('/','_over_') 
+                + '_' + param['name'][1].replace('/','-over-') + '_vs_energy.json', 'w') as f:
+            f.write(json.dumps({param['name'][0]+' ('+param['unit'][0]+')': x[0].flatten(order='F').tolist(), 
+                                param['name'][1]+' ('+param['unit'][1]+')': x[1].flatten(order='F').tolist(),
+                                'energies (eV)': energy.flatten().tolist()}))
+    else:
+        with open(proj_dir+'/tables'+'/' + param['name'] + '_vs_energy.json', 'w') as f:
+            f.write(json.dumps({param['name']+' ('+param['unit']+')': x, 'energies (eV)': energy}))
     
 
 def __fromjson__(job_info):
@@ -282,10 +377,11 @@ def __fromjson__(job_info):
 def __makeplot__(x,energy,param):
     '''Make a simple x-y plot'''
     #Plot results
-    plt.scatter(x, energy)
-    plt.plot(x, energy)
-    plt.xlabel(param['name']+' ('+param['unit']+')')
-    plt.ylabel('Total Energy (eV)') 
+    fig, ax = plt.subplots()
+    ax.scatter(x, energy)
+    ax.plot(x, energy)
+    ax.set_xlabel(param['name']+' ('+param['unit']+')')
+    ax.set_ylabel('Total Energy (eV)') 
 
 def __saveplot__(proj_dir,plotname):
     '''Save plot'''
@@ -293,3 +389,4 @@ def __saveplot__(proj_dir,plotname):
     if not os.path.exists(proj_dir+'/images'):
         os.makedirs(proj_dir+'/images')
     plt.savefig(proj_dir+'/images'+'/'+plotname)
+    plt.close()

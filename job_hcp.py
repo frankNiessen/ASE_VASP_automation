@@ -5,12 +5,13 @@ def job(kpar=1,ncore=1):
     from ase.calculators.vasp import Vasp
     from ase.io import read
     import numpy as np
+    from ase.lattice.hexagonal import HexagonalClosedPacked
    
     #General job information
-    job_info = {'atoms': 'atoms/Fe_fcc',
+    job_info = {'atoms': 'atoms/Fe_hcp',
                 'atomtype': 'vasp',
                 'subdir':'results',
-                'name': 'Fe_fcc'}
+                'name': 'Fe_hcp'}
                 
 
     atoms = read(job_info['atoms'],format=job_info['atomtype'])
@@ -53,18 +54,24 @@ def job(kpar=1,ncore=1):
     #VOLUME Relaxation - Equation of State
     calc_conv.set(isif=2,     # ISIF=2: Update ion positions, keep cell shape and volume
              ibrion=1)   # IBRION=1: ionic relaxation
+    atoms = calc_conv.get_atoms()
+    abc = atoms.get_cell_lengths_and_angles()
+    a_range = np.arange(0.96,1.04,0.01)*abc[1]
+    ca_range = np.arange(0.96,1.04,0.01)*abc[2]/abc[1]
+
     v0 = calc_conv.get_atoms().get_volume()
     job_info['method'] = 'ISIF2_rel'
-    param = {'name': 'volume change',
-             'unit': '1', 
-             'value': (np.arange(0.8, 1.21, 0.05)).tolist()}         
-    [volumes, energies, eos] = vasplib.volume_relaxation(calc,param,job_info)
+    param = {'name': ('a', 'c/a'),
+             'unit': ('AA', '1'), 
+             'value': [a_range,ca_range]}         
+    [volumes, energies, eos] = vasplib.volume_relaxation_hcp(calc,param,job_info)
 
     #VOLUME Refinement - Equation of State
     job_info['load_dir'] =  job_info['method']+'/raw' 
     job_info['prev_results'] = job_info['method']+'/tables/volume_vs_energy.json'
     job_info['method'] = 'ISIF4_ref'
-    calc = vasplib.load_calc(job_info)
+    load_dir = job_info['subdir'] + '/' + job_info['name'] + '/' + job_info['load_dir']
+    calc = vasplib.load_calc(load_dir)
 
     #Set calculation parameters
     for c in calc:

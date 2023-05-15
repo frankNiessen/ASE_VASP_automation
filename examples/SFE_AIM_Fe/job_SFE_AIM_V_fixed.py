@@ -81,10 +81,10 @@ if __name__ == '__main__':
                 'job_dir': os.path.dirname(__file__), 
                 'software_settings': 'vasp_default',
                 'result_dir': 'results/'+os.path.basename(sys.argv[0]).split('.')[0],
-                'software': 'vasp'
+                'software': 'vasp',
+                'vasp_settings': vasplib.get_par_settings(sys.argv)
                 }
     settings["job_id"] = vasplib.make_jobid(0)
-    settings["ncore"], settings["kpar"] = vasplib.get_par_settings(sys.argv)
 
     # Log command line output
     sys.stdout = vasplib.Logger(

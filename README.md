@@ -5,9 +5,9 @@ I only implement what I need for my own research and I share it here in the hope
 *This repo has been entirely revamped on 11/05/2023. You can find the legacy version of ASE_VASP_automation [here](https://github.com/frankNiessen/ASE_VASP_automation/releases/tag/v0.9).*
 
 ## Installation
-- You need to have a properly working and licensed **VASP** installation on your local computer or a high performance cluster.
-- You need to have **ASE** properly installed and set up to work with VASP (check out the instructions [here](https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html)). The workflow has been tested with version *3.20.1*.
 - To install the ASE_VASP_automation software, paste this folder wherever it is convenient for you on your computer and add **export PYTHONPATH=<path-to-ase_vasp_automation-package>:$PYTHONPATH** to your **~/.bashrc** file.
+- You need to have **ASE** properly installed and set up to work with VASP (check out the instructions [here](https://wiki.fysik.dtu.dk/ase/ase/calculators/vasp.html)). use the [spec file](https://github.com/frankNiessen/ASE_VASP_automation/blob/master/spec-file.txt) to install all required python packages into a virtual conda environment by running **conda create --name env_vasp_ase_automation --file spec-file.txt**.
+- You need to have a properly working and licensed **VASP** installation on your local computer or a high performance cluster.
 - The scripts can be run from anywhere, meaning that you could cut and paste the example folder to wherever you store your code.
 
 ## Program structure

@@ -2,7 +2,6 @@ import sys
 import os
 import json
 import numpy as np
-from ase.calculators.vasp import Vasp
 from ase.io import read
 import numpy as np
 import vasplib
@@ -14,12 +13,9 @@ def workflow_etot(settings):
     atoms = read(settings['job_dir'] + '/' + settings['atoms_dir'] + '/' +
                  settings['atoms'], format=settings['software'])
 
-    # Define VASP job parameters
-    calc = Vasp()
-    calc.read_json(vasplib.libdir(
-        '/settings/' + settings["software_settings"] + ".json"))
-    calc.set(atoms=atoms)
-    calc.set(kpar=settings["kpar"], ncore=settings["ncore"])
+    # Initialize VASP calculation
+    vasp_settings = vasplib.libdir('/settings/' + settings["software_settings"])
+    calc = vasplib.ini_vasp_calculation(vasp_settings,atoms, settings["vasp_settings"])
 
     # Set volume
     calc.atoms.set_cell(
@@ -82,11 +78,12 @@ if __name__ == '__main__':
                 'software_settings': 'vasp_default',
                 'job_dir': os.path.dirname(__file__), 
                 'result_dir': 'results/'+os.path.basename(sys.argv[0]).split('.')[0],
-                'software': 'vasp'
+                'software': 'vasp',
+                'vasp_settings': vasplib.get_par_settings(sys.argv)
                 }
     
     settings["job_id"] = vasplib.make_jobid(0)
-    settings["ncore"], settings["kpar"] = vasplib.get_par_settings(sys.argv)
+    
 
     # Log command line output
     sys.stdout = vasplib.Logger(

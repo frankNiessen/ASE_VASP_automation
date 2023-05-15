@@ -14,12 +14,9 @@ def workflow_etot(settings):
     atoms = read(settings['job_dir'] + '/' + settings['atoms_dir'] + '/' +
                  settings['atoms'], format=settings['software'])
 
-    # Define VASP job parameters
-    calc = Vasp()
-    calc.read_json(vasplib.libdir(
-        '/settings/' + settings["software_settings"] + ".json"))
-    calc.set(atoms=atoms)
-    calc.set(kpar=settings["kpar"], ncore=settings["ncore"])
+    # Initialize VASP calculation
+    vasp_settings = vasplib.libdir('/settings/' + settings["software_settings"])
+    calc = vasplib.ini_vasp_calculation(vasp_settings,atoms, settings["vasp_settings"])
 
     # Set volume
     calc.atoms.set_cell(

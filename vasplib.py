@@ -440,7 +440,7 @@ def get_par_settings(argv):
         ncore = 1
         kpar = 1
     print(" *Running with npar={0:d} and kpar={1:d}\n".format(ncore, kpar))
-    return ncore, kpar
+    return {"ncore": ncore, "kpar": kpar}
 
 
 def __error_check__(calc):
@@ -509,6 +509,14 @@ def __result_template__(param_name=None, param_unit=None):
         units[param_name] = param_unit
     return values, units
 
+def ini_vasp_calculation(json_string,atoms = None, additional_settings = None, txt = "vasp.out"):
+    calc = Vasp()
+    calc.read_json(json_string + ".json")
+    if atoms: calc.set(atoms=atoms)
+    if additional_settings:
+        calc.fromdict({"inputs":additional_settings})
+    calc.txt = txt
+    return calc
 
 def makeplot(x, energy, param_name, param_unit):
     '''Make a simple x-y plot'''

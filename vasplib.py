@@ -439,7 +439,7 @@ def get_par_settings(argv):
     else:
         ncore = 1
         kpar = 1
-    print(" *Running with npar={0:d} and kpar={1:d}\n".format(ncore, kpar))
+    print(" *Running with npar={0:d} and kpar={1:d}".format(ncore, kpar))
     return {"ncore": ncore, "kpar": kpar}
 
 
@@ -548,11 +548,30 @@ def prnt_header(string):
 
 
 def prnt_subheader(string):
-    print('............................')
-    print(string)
-    print('............................')
+    print('. . . . . . . . . . . . . . .')
+    print('  ' + string)
+    print('. . . . . . . . . . . . . . .')
 
+class runtime():
+    def __init__(self):
+        self.start_time = time.time()
+        self.end_time = None
+        self.elapsed_time = None
+        self.print_time(self.start_time,'Start time')
 
+    def stop(self):
+        self.end_time = time.time()
+        self.elapsed_time = self.end_time - self.start_time
+        self.print_time(self.end_time,'End time')
+        self.print_time(self.elapsed_time,'Elapsed time',"gmtime")
+    
+    def print_time(self,t,string, timeformat = "localtype"):
+        if timeformat == "gmtime":
+            print('{0}: {1} hh:mm:ss'.format(string,time.strftime("%H:%M:%S", time.gmtime(t))))
+        else:
+            print('{0}: {1} hh:mm:ss'.format(string,time.strftime("%H:%M:%S", time.localtime(t))))
+
+        
 class Logger(object):
     def __init__(self, filename):
         self.terminal = sys.stdout

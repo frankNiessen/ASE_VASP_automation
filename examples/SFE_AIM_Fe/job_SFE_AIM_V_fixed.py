@@ -7,7 +7,9 @@ import numpy as np
 from ase.calculators.vasp import Vasp
 from ase.io import read
 import numpy as np
+import time
 import vasplib
+
 
 
 def workflow_etot(settings):
@@ -77,6 +79,7 @@ def workflow_post(settings):
 if __name__ == '__main__':
 
     # Global settings
+    
     settings = {'atoms_dir': 'atoms',
                 'job_dir': os.path.dirname(__file__), 
                 'software_settings': 'vasp_default',
@@ -85,11 +88,12 @@ if __name__ == '__main__':
                 'vasp_settings': vasplib.get_par_settings(sys.argv)
                 }
     settings["job_id"] = vasplib.make_jobid(0)
-
     # Log command line output
     sys.stdout = vasplib.Logger(
         settings['job_dir'] + '/' + settings["result_dir"] + "/" + settings["job_id"] + "_log.output")
-    print(' /////  AIM fcc - hcp calculations - ' + settings["job_id"])
+    vasplib.prnt_header(' /////  AIM fcc - hcp calculations - ' + settings["job_id"])
+    
+    runtime = vasplib.runtime()
 
     # FCC workflow settings
     settings_fcc = {
@@ -136,4 +140,6 @@ if __name__ == '__main__':
     # SFE AIM workflow
     result, unit = workflow_post(settings_sfe_aim)
 
+    # Time
+    runtime.stop()
 # %%

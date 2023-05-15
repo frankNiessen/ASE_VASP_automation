@@ -4,16 +4,16 @@ import os
 import json
 import os
 import numpy as np
-import vasplib
 from ase.calculators.vasp import Vasp
 from ase.io import read
 import numpy as np
+import vasplib
 
 
 def workflow_etot(settings):
     vasplib.prnt_header(
         'Running E_tot workflow: ' + settings['workflow_name'] + ' on cell ' + settings['atoms'])
-    atoms = read(settings['atoms_dir'] + '/' +
+    atoms = read(settings['job_dir'] + '/' + settings['atoms_dir'] + '/' +
                  settings['atoms'], format=settings['software'])
 
     # Define VASP job parameters
@@ -35,7 +35,7 @@ def workflow_etot(settings):
             task = json.load(openfile)
             # Attach additional information
             task.update(settings['task_input'])
-            task["outdir"] = settings['result_dir'] + '/' + \
+            task["outdir"] = settings['job_dir'] + '/' + settings['result_dir'] + '/' + \
                 settings['atoms'] + '/' + t
 
             # Execute task
@@ -62,7 +62,7 @@ def workflow_post(settings):
             task = json.load(openfile)
             # Attach additional information
             task.update(settings['task_input'])
-            task["outdir"] = settings['result_dir'] + '/' + \
+            task["outdir"] = settings['job_dir'] + '/' + settings['result_dir'] + '/' + \
                 settings['workflow_name'] + '/' + t
             # Execute task
             result, unit = getattr(vasplib, task["name"])(task)
@@ -81,8 +81,9 @@ if __name__ == '__main__':
 
     # Global settings
     settings = {'atoms_dir': 'atoms',
+                'job_dir': os.path.dirname(__file__), 
                 'software_settings': 'vasp_default',
-                'result_dir': 'results/V_fixed',
+                'result_dir': 'results/'+os.path.basename(sys.argv[0]).split('.')[0],
                 'software': 'vasp'
                 }
     settings["job_id"] = vasplib.make_jobid(0)
@@ -90,7 +91,7 @@ if __name__ == '__main__':
 
     # Log command line output
     sys.stdout = vasplib.Logger(
-        settings["result_dir"] + "/" + settings["job_id"] + "_log.output")
+        settings['job_dir'] + '/' + settings["result_dir"] + "/" + settings["job_id"] + "_log.output")
     print(' /////  AIM fcc - hcp calculations - ' + settings["job_id"])
 
     # FCC workflow settings
@@ -123,8 +124,8 @@ if __name__ == '__main__':
         'tasks': ['sfe_aim'],
         'task_input': {
             'software': settings['software'],
-            'atoms_dir': settings['atoms_dir'],
-            'result_dir': settings["result_dir"],
+            'atoms_dir': settings['job_dir'] + "/" + settings['atoms_dir'],
+            'result_dir': settings['job_dir'] + "/" + settings["result_dir"],
             'job_id': settings["job_id"],
             # parent, child - order matters!
             'atoms': ['fcc', 'hcp'],

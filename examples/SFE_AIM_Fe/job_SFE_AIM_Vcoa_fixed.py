@@ -82,6 +82,7 @@ if __name__ == '__main__':
                 'software': 'vasp',
                 'vasp_settings': vasplib.get_par_settings(sys.argv)
                 }
+    
     settings["job_id"] = vasplib.make_jobid(0)
 
     # Log command line output
@@ -89,8 +90,6 @@ if __name__ == '__main__':
         settings['job_dir'] + '/' + settings["result_dir"] + "/" + settings["job_id"] + "_log.output")
     print(' /////  AIM fcc - hcp calculations - ' + settings["job_id"])
 
-    runtime = vasplib.runtime()
-    
     # FCC workflow settings
     settings_fcc = {
         'workflow_name': 'Relax fcc',
@@ -135,6 +134,3 @@ if __name__ == '__main__':
 
     # SFE AIM workflow
     result, unit = workflow_post(settings_sfe_aim)
-    
-    # Time
-    runtime.stop()

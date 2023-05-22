@@ -3,6 +3,7 @@ from ase.calculators.vasp import Vasp
 from ase.eos import EquationOfState
 from ase.io import read
 from ase import lattice
+from deepdiff import DeepDiff
 from datetime import datetime
 import time
 import json
@@ -17,45 +18,51 @@ import sys
 matplotlib.use('Agg')
 
 
-def param_convergence(calc, task):
+def param_convergence(calc, operation):
     '''Parameter convergence study by iterative parameter change and potential energy calculation'''
-    prnt_subheader('Running ' + task['name'])
+    prnt_subheader('Running ' + operation['name'])
     print(
-        '   -Tolerance: {0:0.2e}'.format(task['epsilon_value']) + task['epsilon_unit'])
-    if 'stop_when_converged' in task.keys() and task['stop_when_converged']:
+        '   -Tolerance: {0:0.2e}'.format(operation['epsilon_value']) + operation['epsilon_unit'])
+    if 'stop_when_converged' in operation.keys() and operation['stop_when_converged']:
         print('   -Stopping when converged')
 
     # Prepare variables
-    values = task['value']
-    outdir = task['outdir']
-    result, unit = __result_template__(task['param'], task['unit'])
+    values = operation['value']
+    outdir = operation['outdir']
+    result, unit = __result_template__(operation['param'], operation['unit'])
 
     # Loop over parameter and calculate the total energy
     for idx, value in enumerate(values):
-        print(str(idx + 1) + '/' + str(len(values)) + ' - ' + task['name'] + ': ' +
-              str(value) + ' (' + task['unit'] + '),', end="", flush=True)
+        if idx >= 1:
+            calc_info = calc.asdict()
+        print(str(idx + 1) + '/' + str(len(values)) + ' - ' + operation['name'] + ': ' +
+              str(value) + ' (' + operation['unit'] + '),', end="", flush=True)
         if all(isinstance(x, int) for x in values):
             calcdir = outdir + '/raw/{0}'.format(value)
-        elif all(isinstance(x, float) for x in task['value']):
+        elif all(isinstance(x, float) for x in operation['value']):
             calcdir = outdir + '/raw/{0:1.2f}'.format(value)
-        elif all(isinstance(x, list) for x in task['value']):
+        elif all(isinstance(x, list) for x in operation['value']):
             outstr = format(value).replace(
                 ",", "_").strip("[]").replace(" ", "")
             calcdir = outdir + '/raw/' + outstr
         calc.set(directory=calcdir)
-        eval('calc.set(' + task['param'] + '=' + str(value) + ')')
+        eval('calc.set(' + operation['param'] + '=' + str(value) + ')')
 
         calc, e, v = calculate(calc)
         result["etot"].append(e)
         result["v0"].append(v)
-        result[task["param"]].append(value)
+        result[operation["param"]].append(value)
 
         # Print energies and check for convergence
-        if 'epsilon_value' in task.keys() and idx > 0 and np.abs(result["etot"][idx] - result["etot"][idx - 1]) < task['epsilon_value']:
-            if 'stop_when_converged' in task.keys() and task['stop_when_converged']:
+        if 'epsilon_value' in operation.keys() and idx > 0 and np.abs(result["etot"][idx] - result["etot"][idx - 1]) < operation['epsilon_value']:
+            if 'stop_when_converged' in operation.keys() and operation['stop_when_converged']:
                 print("Stopping convergence loop: Difference in e_pot < {0:0.2e} {1}".format(
-                    task['epsilon_value'], task['epsilon_unit']))
-                task['value'][idx + 1:] = []
+                    operation['epsilon_value'], operation['epsilon_unit']))
+                operation['value'][idx + 1:] = []
+                txt = calc.txt
+                calc = Vasp()
+                calc.fromdict(calc_info)
+                calc.txt = txt
                 break
 
     return calc, result, unit
@@ -71,6 +78,7 @@ def cell_relaxation(calc, task):
     atoms = calc.get_atoms()
     v0 = atoms.get_volume()
     cell0 = atoms.get_cell()
+    calc.set(isif=task["isif"])
 
     # Prepare variables
     values = task['value']
@@ -139,6 +147,7 @@ def cell_relaxation_hcp(calc, task):
     v0 = atoms0.get_volume()
     cell0 = atoms0.get_cell().copy()
     a0 = cell0[0, 0]
+    calc.set(isif=task["isif"])
     # Prepare variables
     values = task['value']
     outdir = task['outdir']
@@ -263,9 +272,6 @@ def kpoint_lists(calc, kpoints):
 
 
 def is_equal_calc(calc, calc_loaded, ignore_params=['kpar', 'ncore']):
-    from deepdiff import DeepDiff
-    from ase.io import read
-
     # Check if loaded calculation exists
     if calc_loaded == []:
         return False
@@ -454,40 +460,48 @@ def __error_check__(calc):
             'Too few bands! Increase the parameter NBANDS in file INCAR to ensure that the highest band is unoccupied at all k-points')
 
 
-def sfe_aim(task):
+def sfe_aim(etot, n_at, a):
     # SFE calculation according to Axial Interaction Model
-    etot = []
-    area = []
-    for id, atoms in enumerate(task['atoms']):
-        nr_at = read(task['atoms_dir'] + '/' + atoms,
-                     format=task['software']).get_global_number_of_atoms()
-        # Find and open data
-        filename = os.path.abspath(task["result_dir"]) + "/" + atoms + "/" + \
-            task["etot_source"][id] + "/results/" + \
-            task["etot_job"][id] + ".json"
-        with open(filename, 'r') as j:
-            data = json.loads(j.read())
-        etot.append(float(data["results"]["etot"]
-                    [task["etot_index"][id]]) / nr_at)
-        area.append(np.sqrt(3) / 2 * (np.sqrt(2) / 2 *
-                    float(data["settings"]["lattice_param"]))**2 * 1e-20 * nr_at)
-    result = {"sfe": [2 * (etot[1] - etot[0]) * 1.602177e-16 / (area[0])]}
+    area = np.sqrt(3) / 4 * (a)**2 * 1e-20
+    value = {"sfe": [2 * (etot[1] / n_at[1] - etot[0] /
+                          n_at[0]) * 1.602177e-16 / (area)]}
     unit = {"sfe": "mJ.m^(-2)"}
     print("The SFE from the AIM approach is {0:0.2f} {1}".format(
-        result["sfe"][0], unit["sfe"]))
-    return result, unit
+        value["sfe"][0], unit["sfe"]))
+    return value, unit
 
 
-def result2json(task, settings, results, unit):
+def save_workflow(workflow):
+    if not os.path.exists(workflow["run_options"]["result_dir"]):
+        os.makedirs(workflow["run_options"]["result_dir"])
+
+    with open(workflow["run_options"]["result_dir"] + '/workflow_' + workflow["run_options"]["job_id"] + '.json', 'w') as f:
+        f.write(json.dumps(workflow, cls=NumpyEncoder))
+
+
+def result2json(operation, task, run_options, results, unit):
     '''Export results to *.json file'''
     time = datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
-    outdir = task["outdir"] + '/results'
+    outdir = operation["outdir"] + '/results'
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    with open(outdir + '/' + task["job_id"] + '.json', 'w') as f:
-        f.write(json.dumps({"info": {"job_id": task["job_id"], "time": time},
-                "task": task, "settings": settings, "results": results, "units": unit}))
+    with open(outdir + '/' + run_options["job_id"] + '.json', 'w') as f:
+        f.write(json.dumps({"info": {"job_id": run_options["job_id"], "time": time},
+                "operation": operation, "task": task, "run_options": run_options, "results": results, "units": unit}, cls=NumpyEncoder))
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """ Special json encoder for numpy types """
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 
 def __fromjson__(job_info):
@@ -509,14 +523,17 @@ def __result_template__(param_name=None, param_unit=None):
         units[param_name] = param_unit
     return values, units
 
-def ini_vasp_calculation(json_string,atoms = None, additional_settings = None, txt = "vasp.out"):
+
+def ini_vasp_calculation(json_string, atoms=None, additional_settings=None, txt="vasp.out"):
     calc = Vasp()
     calc.read_json(json_string + ".json")
-    if atoms: calc.set(atoms=atoms)
+    if atoms:
+        calc.set(atoms=atoms)
     if additional_settings:
-        calc.fromdict({"inputs":additional_settings})
+        calc.fromdict({"inputs": additional_settings})
     calc.txt = txt
     return calc
+
 
 def makeplot(x, energy, param_name, param_unit):
     '''Make a simple x-y plot'''
@@ -552,26 +569,35 @@ def prnt_subheader(string):
     print('  ' + string)
     print('. . . . . . . . . . . . . . .')
 
+
+def is_hpc(hostname, hostnames_json):
+    with open(libdir() + "/settings/" + hostnames_json, 'r') as j:
+        hostnames = json.loads(j.read())
+    return hostname in hostnames['HPC']
+
+
 class runtime():
     def __init__(self):
         self.start_time = time.time()
         self.end_time = None
         self.elapsed_time = None
-        self.print_time(self.start_time,'Start time')
+        self.print_time(self.start_time, 'Start time')
 
     def stop(self):
         self.end_time = time.time()
         self.elapsed_time = self.end_time - self.start_time
-        self.print_time(self.end_time,'End time')
-        self.print_time(self.elapsed_time,'Elapsed time',"gmtime")
-    
-    def print_time(self,t,string, timeformat = "localtype"):
-        if timeformat == "gmtime":
-            print('{0}: {1} hh:mm:ss'.format(string,time.strftime("%H:%M:%S", time.gmtime(t))))
-        else:
-            print('{0}: {1} hh:mm:ss'.format(string,time.strftime("%H:%M:%S", time.localtime(t))))
+        self.print_time(self.end_time, 'End time')
+        self.print_time(self.elapsed_time, 'Elapsed time', "gmtime")
 
-        
+    def print_time(self, t, string, timeformat="localtype"):
+        if timeformat == "gmtime":
+            print('{0}: {1} hh:mm:ss'.format(
+                string, time.strftime("%H:%M:%S", time.gmtime(t))))
+        else:
+            print('{0}: {1} hh:mm:ss'.format(
+                string, time.strftime("%H:%M:%S", time.localtime(t))))
+
+
 class Logger(object):
     def __init__(self, filename):
         self.terminal = sys.stdout
@@ -595,5 +621,8 @@ def make_jobid(uid):
     return "%s_%d" % (uid, epoch)
 
 
-def libdir(string):
-    return os.path.dirname(__file__) + string
+def libdir(string=None):
+    if not string:
+        return os.path.dirname(__file__)
+    else:
+        return os.path.dirname(__file__) + string

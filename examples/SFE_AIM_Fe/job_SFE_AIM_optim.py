@@ -98,8 +98,6 @@ if __name__ == '__main__':
         'tasks': ['kpoint_optimization', 'cell_relaxation_isif2', 'fit_eos_isif2']}
     settings_fcc.update(settings)
 
-    runtime = vasplib.runtime()
-    
     # FCC workflow
     result, unit = workflow_etot(settings_fcc)
 
@@ -135,6 +133,3 @@ if __name__ == '__main__':
 
     # SFE AIM workflow
     result, unit = workflow_post(settings_sfe_aim)
-
-    # Time
-    runtime.stop()

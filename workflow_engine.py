@@ -11,7 +11,6 @@ import vasplib
 
 def execute_workflow(workflow):
     # Update run options
-    workflow['run_options']['job_dir'] = os.path.dirname(__file__)
     workflow['run_options']['result_dir'] = workflow['run_options']['job_dir'] + '/' + workflow['run_options']['result_dir'] + \
         '/' + workflow["label"]
     workflow['run_options']["job_id"] = vasplib.make_jobid(0)

@@ -105,39 +105,40 @@ def cell_relaxation(calc, task):
     return calc, result, unit
 
 
-def fit_eos(calc, task):
+def fit_eos(calc, operation):
     # Fit an equation of state
 
     # Find and open data
     filename = os.path.abspath(os.path.join(
-        task["outdir"], os.pardir)) + "/" + task["input_dataset"] + "/results/" + task["job_id"] + ".json"
+        operation["outdir"], os.pardir)) + "/" + operation["input_dataset"] + "/results/" + operation["job_id"] + ".json"
     with open(filename, 'r') as j:
         data = json.loads(j.read())
 
     # Define variables for eos fit
-    x = data["results"][task["x"]]
-    y = data["results"][task["y"]]
+    x = data["results"][operation["x"]]
+    y = data["results"][operation["y"]]
     result, unit = __result_template__("B", "eV/A^3")
 
     # eos fit
     eos = EquationOfState(x, y)
     x, y, dxy = eos.fit()
-    result[task["x"]] = [x]
-    result[task["y"]] = [y]
+    result[operation["x"]] = [x]
+    result[operation["y"]] = [y]
     result["B"] = [dxy]
     # eos command window output
     print("")
     print('.......... Equation of State ..........')
     print('{0}_0 = {1:0.4e} ({2})'.format(
-        task["x"], result[task["x"]][0], data["units"][task["x"]]))
+        operation["x"], result[operation["x"]][0], data["units"][operation["x"]]))
     print('{0}_0 = {1:0.4e} ({2})'.format(
-        task["y"], result[task["y"]][0], data["units"][task["y"]]))
+        operation["y"], result[operation["y"]][0], data["units"][operation["y"]]))
     print('{0}_0 = {1:0.4e} ({2})'.format("B", result["B"][0], unit["B"]))
     print('.......................................')
 
     # eos plotting
     eos.plot()
-    saveplot(task["outdir"], task["job_id"] + "_" + task['name'] + '.png')
+    saveplot(operation["outdir"], operation["job_id"] +
+             "_" + operation['name'] + '.png')
     return calc, result, unit
 
 

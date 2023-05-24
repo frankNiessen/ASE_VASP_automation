@@ -1,5 +1,7 @@
 from ase.calculators.calculator import equal
 from ase.calculators.vasp import Vasp
+# from vasp_interactive import VaspInteractive as Vasp
+from ase.optimize import BFGS
 from ase.eos import EquationOfState
 from ase.io import read
 from ase import lattice
@@ -51,6 +53,7 @@ def param_convergence(calc, operation):
         calc, e, v = calculate(calc)
         result["etot"].append(e)
         result["v0"].append(v)
+        result["atoms"].append(calc.atoms.todict())
         result[operation["param"]].append(value)
 
         # Print energies and check for convergence
@@ -97,6 +100,7 @@ def cell_relaxation(calc, task):
         calc, e, v = calculate(calc)
         result["etot"].append(e)
         result["v0"].append(v)
+        result["atoms"].append(calc.atoms.todict())
         result[task["param"]].append(value)
 
     # Reset atoms to cell0
@@ -174,69 +178,70 @@ def cell_relaxation_hcp(calc, task):
         calc, e, v = calculate(calc)
         result["etot"].append(e)
         result["v0"].append(v)
+        result["atoms"].append(calc.atoms.todict())
         result[task["param"]].append(value)
     return calc, result, unit
 
 
-def cell_refinement(calcs, job_info):
-    '''Cell relaxation by refinement of previous calculation and potential energy calculation'''
-    energy, volume = [], []
-    param = {'name': 'volume',
-             'unit': 'AA^3'}
-    proj_dir = job_info['subdir'] + '/' + \
-        job_info['name'] + '/' + job_info['method']
+# def cell_refinement(calcs, job_info):
+#     '''Cell relaxation by refinement of previous calculation and potential energy calculation'''
+#     energy, volume = [], []
+#     param = {'name': 'volume',
+#              'unit': 'AA^3'}
+#     proj_dir = job_info['subdir'] + '/' + \
+#         job_info['name'] + '/' + job_info['method']
 
-    prnt_subheader('Running cell refinement: ' + job_info['method'] + ' ...')
-    for idx, calc in enumerate(calcs):
-        atoms = calc.get_atoms()
-        print(str(idx + 1) + '/' + str(len(calcs)) + ' - Refining job ' + job_info['load_dir'] +
-              ': volume {0:1.2f} AA^3,'.format(atoms.get_volume()), end="", flush=True)
-        calcname = os.path.basename(calc.directory)
-        calc_dir = proj_dir + '/' + calcname
-        calc.set(directory=calc_dir)
-        calc.set(atoms=atoms)
-        calc, e, v = calculate(calc)
-        energy.append(e)
-        volume.append(v)
+#     prnt_subheader('Running cell refinement: ' + job_info['method'] + ' ...')
+#     for idx, calc in enumerate(calcs):
+#         atoms = calc.get_atoms()
+#         print(str(idx + 1) + '/' + str(len(calcs)) + ' - Refining job ' + job_info['load_dir'] +
+#               ': volume {0:1.2f} AA^3,'.format(atoms.get_volume()), end="", flush=True)
+#         calcname = os.path.basename(calc.directory)
+#         calc_dir = proj_dir + '/' + calcname
+#         calc.set(directory=calc_dir)
+#         calc.set(atoms=atoms)
+#         calc, e, v = calculate(calc)
+#         energy.append(e)
+#         volume.append(v)
 
-    # Save table
-    result2json(proj_dir, volume, energy, param)
+#     # Save table
+#     result2json(proj_dir, volume, energy, param)
 
-    # Plot and save figure
-    makeplot(volume, energy, param)
-    saveplot(proj_dir, param['name'] + '_vs_energy.png')
+#     # Plot and save figure
+#     makeplot(volume, energy, param)
+#     saveplot(proj_dir, param['name'] + '_vs_energy.png')
 
-    # Fit an equation of state
-    eos = EquationOfState(volume, energy)
-    v0, e0, B = eos.fit()
-    print('.......... Equation of State ..........')
-    print('v0 = {0} AA^3, E0 = {1} eV, B  = {2} eV/A^3'.format(v0, e0, B))
-    eos.plot()
-    saveplot(proj_dir, 'equation_of_state.png')
+#     # Fit an equation of state
+#     eos = EquationOfState(volume, energy)
+#     v0, e0, B = eos.fit()
+#     print('.......... Equation of State ..........')
+#     print('v0 = {0} AA^3, E0 = {1} eV, B  = {2} eV/A^3'.format(v0, e0, B))
+#     eos.plot()
+#     saveplot(proj_dir, 'equation_of_state.png')
 
-    # Fit an equation of state
-    if len(energy) > 1:
-        eos = EquationOfState(volume, energy)
-        v0, e0, B = eos.fit()
-        print('.......... Equation of State ..........')
-        print('v0 = {0} AA^3, E0 = {1} eV, B  = {2} eV/A^3'.format(v0, e0, B))
-        eos.plot()
-        saveplot(proj_dir, 'equation_of_state.png')
+#     # Fit an equation of state
+#     if len(energy) > 1:
+#         eos = EquationOfState(volume, energy)
+#         v0, e0, B = eos.fit()
+#         print('.......... Equation of State ..........')
+#         print('v0 = {0} AA^3, E0 = {1} eV, B  = {2} eV/A^3'.format(v0, e0, B))
+#         eos.plot()
+#         saveplot(proj_dir, 'equation_of_state.png')
 
-        # Compare to previous results
-        data = __fromjson__(job_info)
-        if data:
-            plt.figure()
-            makeplot(volume, energy, param)
-            makeplot(data['volume (AA^3)'], data['energies (eV)'], param)
-            plt.legend(['refined', 'initial'], loc='best')
-            saveplot(proj_dir, 'refinement_results.png')
-        return [volume, energy, [v0, e0, B]]
-    else:
-        print('v0 = {0} AA^3, E0 = {1} eV'.format(volume, energy))
-        return [volume, energy, []]
+#         # Compare to previous results
+#         data = __fromjson__(job_info)
+#         if data:
+#             plt.figure()
+#             makeplot(volume, energy, param)
+#             makeplot(data['volume (AA^3)'], data['energies (eV)'], param)
+#             plt.legend(['refined', 'initial'], loc='best')
+#             saveplot(proj_dir, 'refinement_results.png')
+#         return [volume, energy, [v0, e0, B]]
+#     else:
+#         print('v0 = {0} AA^3, E0 = {1} eV'.format(volume, energy))
+#         return [volume, energy, []]
 
-    return [volume, energy, [v0, e0, B]]
+#     return [volume, energy, [v0, e0, B]]
 
 
 def stretch_cell(atoms, cell0, param, cell_ref=None):
@@ -516,8 +521,8 @@ def __fromjson__(job_info):
 
 
 def __result_template__(param_name=None, param_unit=None):
-    values = {"etot": [], "v0": []}
-    units = {"etot": "eV", "v0": "AA^3"}
+    values = {"etot": [], "v0": [], "atoms": []}
+    units = {"etot": "eV", "v0": "AA^3", "atoms": ""}
     if param_name:
         values[param_name] = []
     if param_unit:

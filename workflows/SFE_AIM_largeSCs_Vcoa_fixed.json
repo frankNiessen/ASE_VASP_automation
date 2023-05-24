@@ -1,0 +1,64 @@
+{
+    "name": "SFE AIM Large Supercells",
+    "label": "SFE_AIM_Vcoa_fixed",
+    "run_options": {
+        "atoms_dir": "atoms",
+        "result_dir": "results",
+        "run_from_scratch": 0,
+        "job_dir": "",
+        "software": {
+            "name": "vasp",
+            "default_settings": "vasp_high_accuracy_largeSC",
+            "settings": {
+                "ncore": 4,
+                "kpar": 10,
+                "nbands": 442,
+                "kpts": [
+                    6,
+                    6,
+                    4
+                ]
+            }
+        }
+    },
+    "tasks": {
+        "relax_fcc": {
+            "method": "total_energy_calculation",
+            "atoms": {
+                "name": "fcc54_1H",
+                "structure": []
+            },
+            "lattice_param": 3.573,
+            "operations": {
+                "cell_relaxation_isif2": {
+                    "settings": {
+                        "value": [
+                            1
+                        ]
+                    }
+                }
+            },
+            "v_optim": {
+                "operation": "cell_relaxation_isif2",
+                "index": -1
+            }
+        },
+        "relax_hcp": {
+            "method": "total_energy_calculation",
+            "atoms": {
+                "name": "hcp54_1H",
+                "structure": []
+            },
+            "lattice_param": [],
+            "operations": {
+                "cell_relaxation_isif2": {
+                    "settings": {
+                        "value": [
+                            1
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

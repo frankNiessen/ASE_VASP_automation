@@ -3,14 +3,15 @@ import json
 import os
 import shutil
 import numpy as np
-from ase.calculators.vasp import Vasp
 from ase.io import read
+from ase import Atoms, lattice
 import numpy as np
 import vasplib
 
 
 def execute_workflow(workflow):
     # Update run options
+
     workflow['run_options']['result_dir'] = workflow['run_options']['job_dir'] + '/' + workflow['run_options']['result_dir'] + \
         '/' + workflow["label"]
     workflow['run_options']["job_id"] = vasplib.make_jobid(0)
@@ -33,13 +34,12 @@ def execute_workflow(workflow):
         vasplib.prnt_header(
             'Running Task: {0}'.format(task))
         if workflow['tasks'][task]['method'] == 'total_energy_calculation':
+            # Get lattice parameter from previous task
             if not workflow['tasks'][task]['lattice_param']:
                 op_optim = workflow['tasks'][task_prev]["v_optim"]["operation"]
                 op_index = workflow['tasks'][task_prev]["v_optim"]["index"]
-                v_opt = workflow['tasks'][task_prev]["operations"][op_optim]["result"]["value"]["v0"][op_index]
-                workflow['tasks'][task]['lattice_param'] = (
-                    v_opt * 4)**(1 / 3) / np.sqrt(2)
-
+                workflow['tasks'][task]['lattice_param'] = Atoms.fromdict(
+                    workflow['tasks'][task_prev]["operations"][op_optim]["result"]["value"]["atoms"][op_index]).cell.get_bravais_lattice().a
             workflow['tasks'][task] = total_energy_calculation(
                 workflow['tasks'][task], workflow['run_options'])
         task_prev = task
@@ -58,8 +58,13 @@ def total_energy_calculation(task, run_options):
     calc = vasplib.ini_vasp_calculation(
         default_settings, atoms, run_options['software']['settings'])
     # Set supercell volume and save atoms
+    if type(atoms.cell.get_bravais_lattice()) == lattice.HEX:
+        fac = 1 / np.sqrt(2)
+    else:
+        fac = 1
+
     calc.atoms.set_cell(
-        calc.get_atoms().cell * task["lattice_param"], scale_atoms=True)
+        calc.get_atoms().cell * task["lattice_param"] * fac, scale_atoms=True)
     initial_volume = calc.get_atoms().get_volume()
     task['atoms']['structure'] = calc.atoms.todict()
 
